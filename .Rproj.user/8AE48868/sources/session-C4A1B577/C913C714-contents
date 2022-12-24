@@ -1,0 +1,233 @@
+---
+title: "demo"
+author: "Tingxi Long"
+date: "2022-11-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(scciclass)
+```
+
+## Demonstrate fn_cos()
+```{r}
+x<-seq(0,10,by=0.5)
+y0<- cos(x)
+y1<- fn_cos(x,1)
+y2<- fn_cos(x,3)
+y3<- fn_cos(x,5)
+y4<- fn_cos(x,7)
+y5<- fn_cos(x,9)
+plot(x,y0,type="l",lty=1,ylim=c(-5,5),xlab="x", ylab="cos and estimation")
+lines(x, y1, pch = 18, col = "purple", type = "b", lty = 1)
+lines(x, y2, pch = 1, col = "blue", type = "b", lty = 1)
+lines(x, y3, pch = 2, col = "pink", type = "b", lty = 1)
+lines(x, y4, pch = 18, col = "red", type = "b", lty = 1)
+lines(x, y5, pch = 16, col = "green", type = "b", lty = 1)
+legend("topright", inset=c(0, 0), legend=c("cosine", "k=1","k=3","k=5","k=7","k=9"),
+       col=c("red", "purple","blue","pink","red","green"), lty = 1, cex=0.8)
+```
+
+
+## Demonstrate fn_sin()
+
+```{r}
+x<-seq(0,10,by=0.5)
+yy0<- sin(x)
+yy1<- fn_sin(x,1)
+yy2<- fn_sin(x,3)
+yy3<- fn_sin(x,5)
+yy4<- fn_sin(x,7)
+yy5<- fn_sin(x,9)
+plot(x,yy0,type="l",lty=1,ylim=c(-5,5),xlab="x", ylab="sine and estimation")
+lines(x, yy1, pch = 18, col = "purple", type = "b", lty = 1)
+lines(x, yy2, pch = 1, col = "blue", type = "b", lty = 1)
+lines(x, yy3, pch = 2, col = "pink", type = "b", lty = 1)
+lines(x, yy4, pch = 18, col = "red", type = "b", lty = 1)
+lines(x, yy5, pch = 16, col = "green", type = "b", lty = 1)
+legend("topright", inset=c(0, 0), legend=c("sine", "k=1","k=3","k=5","k=7","k=9"),
+       col=c("red", "purple","blue","pink","red","green"), lty = 1, cex=0.8)
+```
+
+
+## Demonstrate calculate_CI()
+
+### Introduction
+
+In this part, I will perform an example data analysis with R with [@tidytuesday; @historical_tuition; @diversity_school]. 
+
+Objective: 
+
+-   What is the diversity of schools in the United States? 
+-   What is change in tuition cost for schools in the United States from 1985-2016?
+
+Intended audience:
+
+-   People who cares about quality of education. 
+-   High school and college students
+-   Parents and teachers are also potential audiences.
+
+Link to original data:The two datasets for this part of the assignment comes from  [TidyTuesday](https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-03-10).
+
+### Load the data
+
+```{r, message=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(here)
+```
+
+::: {.callout-note}
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+:::
+
+```{r, message=FALSE}
+# Check if the data already exist
+if(!dir.exists(here("data"))) { dir.create(here("data")) }
+
+if(!file.exists(here("data","tuesdata_cost.RDS"))){
+  tuesdata <- tidytuesdayR::tt_load('2020-03-10')
+  hist_tuition <- tuesdata$historical_tuition
+  diversity_school <- tuesdata$diversity_school
+  
+  # save the files to RDS objects
+  saveRDS(tuesdata$historical_tuition, file = here("data","tuesdata_hist.RDS"))
+  saveRDS(tuesdata$diversity_school, file = here("data","tuesdata_diversity.RDS"))
+}
+```
+
+Let's load the data
+```{r, message=FALSE}
+hist_tuition <- readRDS(here("data","tuesdata_hist.RDS"))
+diversity_school <- readRDS(here("data","tuesdata_diversity.RDS"))
+```
+-   Here is a list of full [data dictionary](https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-03-10/readme.md#data-dictionary) for what all the column names mean. The data dictionary for this example analysis is also shown below.
+
+#### `historical_tuition.csv`
+
+|variable     |class     |description |
+|:------------|:---------|:-----------|
+|type         |character | Type of school (All, Public, Private) |
+|year         |character | Academic year |
+|tuition_type |character | Tuition Type All Constant (dollar inflation adjusted), 4 year degree constant, 2 year constant, Current to year, 4 year current, 2 year current |
+|tuition_cost |double    | Tuition cost in USD |
+
+#### `diversity_school.csv`
+
+|variable         |class     |description |
+|:----------------|:---------|:-----------|
+|name             |character | School name |
+|total_enrollment |double    | Total enrollment of students |
+|state            |character | State name |
+|category         |character | Group/Racial/Gender category |
+|enrollment       |double    | enrollment by category |
+
+### What state in the Unites States has the most Asians?
+
+Using the `diversity_school` data, find the top 100 schools with the highest percentage of Asians in the student body, then group by the state of the school to see which state has most Asian groups in the student body.
+
+```{r}
+# 1.  Add a column that just calculate the frequency of categories.
+diversity_school$freq <- diversity_school$enrollment/diversity_school$total_enrollment
+
+# Select category=Asians.
+div <- diversity_school %>% 
+  filter(freq != 0) %>%
+  filter(category == "Asian") %>%
+  group_by(name) %>%
+  filter(!is.na(state)) %>%
+  head(50) %>%
+  mutate(state=fct_infreq(state)) %>%
+  group_by(state) %>%
+  count(state,sort = TRUE)
+```
+
+```{r}
+# 2. Plot the distribution
+fig1<-ggplot(div, aes(x=n, y=fct_reorder(.f=state,.x=n))) + geom_bar(stat='identity')+theme_bw()+ labs(title ="States of the top 50 schools with highest percentage of Asian group", subtitle = "Florida and Texas has 8/50 schools from the 
+top 50 schools with highest percentage of Asian group", caption = "Tingxi Long")+ ylab("State")+xlab("Number of schools")
+fig1
+```
+
+```{r}
+df <- diversity_school %>% 
+  filter(freq != 0) %>%
+  filter(category == "Black") %>%
+  filter(str_detect(name, "University")==TRUE)%>%
+  group_by(name) %>%
+  arrange(desc(freq)) 
+fig2a <-
+  ggplot(head(df,25),aes(fill=state,x=freq,y=fct_reorder(.f=name, .x = freq)))+
+  geom_bar(stat='identity')+xlab("proportion of black race")+ylab("School name")+
+  labs(title ="Top 25 Universities with highest 
+  percentage of Black group", subtitle = 
+  "Louisiana and Mississippi has 4 schools listed in the top 25 Universities 
+  with highest percentage of black group", caption = "Tingxi Long")
+fig2a
+fig2b <-
+  ggplot(head(df,100),aes(fill=state,x=freq,y=fct_reorder(.f=state, .x = freq)))+
+  geom_bar(stat='identity')+xlab("Number of universities")+ylab("State")+
+  labs(title ="States of the top 100 schools with highest percentage of Black group", subtitle = 
+  "Georgia has 9 Universities listed in the top 100 Universities 
+  with highest percentage of black group", caption = "Tingxi Long")
+fig2b
+```
+
+
+### What is the trend of tuition cost for colleges in the US?
+
+Using the `hist_tution` data, find the 4-year constant tuition cost for private, public and all institutions from 1985-2016.
+
+```{r}
+# 1.  Add a column that just keeps the first `year`.
+hist_tuition$in_year <- as.Date(as.character(substr(hist_tuition$year, 1, 4)), format = "%Y")
+# 2.  Plot the trend 
+ggplot(data=hist_tuition, aes(x=in_year, y = tuition_cost)) + 
+  geom_line(aes(colour = type))+facet_wrap(.~tuition_type,nrow = 3)+
+  labs(title ="Changes in tuition cost for different types of universities from 1985", 
+       subtitle = "An increasing trend is observed among public and private instituions", caption = "Tingxi Long")+geom_point(aes(colour=type))+
+  theme_classic()+theme(strip.background =element_rect(fill="azure2"))+
+  scale_x_date(date_breaks = "5 years", date_minor_breaks = "2 years")+
+  theme(axis.text.x = element_text(angle = -30, vjust = 0.5, hjust=0))+ylab("Cost of tuition (US dollor)")+xlab("Year")
+```
+```{r}
+# demonstrate calculate_CI
+tuition <- hist_tuition %>% 
+  filter(type == "All Institutions") %>%
+  filter(tuition_type == "All Constant")
+CI<- calculate_CI(tuition$tuition_cost,conf=0.95)
+CI
+```
+
+### Summary:
+
+Among the top 50 schools where the percentage of Asians is arranged in a decreasing order, Florida and Texas has 8/50 schools from the top 50 schools with highest percentage of Asian group.
+
+Among the top 25 Universities with highest percentage of Black group, Louisiana and Mississippi each has 4 schools in the list. 23 States has at least one University in the list of top 100 Universities with highest percentage of Black group.
+
+The past 20 years have seen an increasing trend in tuition cost for both private and public colleges and universities.By the 2016, the tuition cost for 4-year program in private universities is almost twice the price of the tuition cost in public universities. The 95% Confidence interval for the all constant tuition cost for all institutions from 1985-2016 is (11617.93,25391.75)
+
+
+``` {.r filename="Functions used in dplyr and tidyr and ggplot"}
+dplyr::
+  filter
+  summarise
+  group_by
+  arrange
+  mutate
+forcats::
+  fct_reorder
+  fct_infreq
+stringr::
+  string_detect
+ggplot:
+  geom_point
+  geom_bar
+  geom_line
+```
+

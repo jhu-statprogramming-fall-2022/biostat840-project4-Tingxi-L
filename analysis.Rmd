@@ -1,0 +1,289 @@
+---
+title: "Spotify songs"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny 
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(DT)
+library(shiny)
+library(tidyr)
+library(tidyverse)
+library(purrr)
+library(here)
+library(forcats)
+```
+```{r, message=FALSE}
+# Check if the data already exist
+if(!dir.exists(here("data"))) { dir.create(here("data")) }
+
+if(!file.exists(here("data","tuesdata_song.RDS"))){
+  tuesdata <- tidytuesdayR::tt_load('2020-01-21')
+  spotify_songs <- tuesdata$spotify_songs
+    
+  # save the files to RDS objects
+  saveRDS(tuesdata$spotify_songs, file = here("data","tuesdata_song.RDS"))
+}
+```
+
+```{r, message=FALSE}
+song<- readRDS(here("data","tuesdata_song.RDS"))
+```
+
+```{r}
+songs_era <- song %>% 
+  mutate(
+    track_album_release_date = as.Date(track_album_release_date),
+    year = as.numeric(format(track_album_release_date,'%Y')),
+    era = case_when(year <= 2000 ~ "Before 2000",
+                    year > 2000 & year <= 2010 ~ "2000-2010",
+                    year > 2010 ~ "After 2010"),
+    duration_min = duration_ms/60000)
+```
+
+About {data-icon="fa-question-circle"}
+===================================== 
+
+Column {data-width="70"}
+-------------------------------------
+
+**Purpose:** We want to show the characteristics of songs in relation to the creater and time of creation.
+
+**Data:** The [data](https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-01-21) includes the album, artist, playlist, popularity and a set of indexes to measure the musical characteristics of the song.
+
+**Data Dictionary:** Here is a list of full [data dictionary](https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-01-21#readme) for what all the column names mean.
+
+The Data {data-icon="fa-database"}
+===================================== 
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+### The Data 
+The [data](https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-01-21) includes the album, artist, playlist, popularity and a set of indexes to measure the musical characteristics of the song.
+
+```{r}
+songs_era <- song %>% 
+  mutate(
+    track_album_release_date = as.Date(track_album_release_date),
+    year = as.numeric(format(track_album_release_date,'%Y')),
+    era = case_when(year <= 2000 ~ "Before 2000",
+                    year > 2000 & year <= 2010 ~ "2000-2010",
+                    year > 2010 ~ "After 2010"),
+    duration_min = duration_ms/60000)
+```
+
+```{r, echo=FALSE}
+DT::renderDataTable({
+  DT::datatable(songs_era,
+                options = list(autoWidth = TRUE,
+                               pageLength = 10,
+                               scroller = TRUE,
+                               scrollY = '450px'))
+})
+```
+
+Static: Time of release 
+===================================== 
+Column {data-width=700 .tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### Number of songs with time
+```{r}
+songs_era %>%
+  filter(year>2000) %>%
+  group_by(year) %>% 
+  mutate(
+  Nsongs= n()) %>%
+  ggplot(aes(fill=playlist_genre,x=year))+geom_histogram(aes(y = Nsongs),stat = "identity")+
+  labs(title ="Number of songs released in each year after 2000 and the genre", subtitle = 
+         "Spotify songs", caption = "Tingxi Long")+ylab("Number of songs")+xlab("Year of release")
+```
+
+### Popularity of songs with time
+```{r}
+songs_era %>%
+  filter(year>2000) %>%
+  group_by(year) %>% 
+  mutate(
+  popularity= mean(track_popularity)) %>%
+  ggplot(aes(x=year,y=popularity))+geom_point()+geom_line()+
+  labs(title ="Average popularity score by year", subtitle = 
+         "Spotify songs", caption = "Tingxi Long")+ylab("Average popularity")+xlab("Year of release")
+```
+
+
+
+Static: Artists 
+===================================== 
+
+
+```{r}
+df1<- songs_era%>%
+  dplyr::count(track_artist)
+
+df1 %>%
+  arrange(desc(n)) %>%
+  head(30) %>%
+  ggplot()+geom_bar(aes(x=n, y=fct_reorder(.f=track_artist, .x = n)),stat = "identity")+
+  labs(title ="Top 30 artist with highest number of songs", subtitle = 
+         "Spotify songs", caption = "Tingxi Long")+ylab("Artist")+xlab("Number of tracks")
+```
+
+Explore genre {data-icon="fa-flag"}
+===================================== 
+
+
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+To see how popularity varies across playlist genres.
+
+```{r}
+selectInput("genre", "Genre:",
+                  c("EDM (edm)" = "edm",
+                    "Latin (latin)" = "latin",
+                    "Pop music (pop)" = "pop",
+                    "R & B (r&b)" = "r&b", 
+                    "Rap music (rap)" = "rap",
+                    "Rock music (rock)"= "rock"))
+```
+
+
+Column {data-width=700 .tabset .tabset-fade}
+-----------------------------------------------------------------------
+### Popularity over genre
+
+```{r}
+formulaText <- reactive({
+    paste("Popularity ~", input$genre)
+  })
+
+  
+renderPlot({
+    songs_era %>%
+    filter(playlist_genre== input$genre) %>%
+    filter(track_popularity != 0) %>%
+    group_by(track_popularity)%>%
+    mutate(
+      N= n()
+    )%>%
+    ggplot(aes(fill=year,x=track_popularity,y=N))+
+    geom_bar(stat='identity')+ 
+    labs(title ="Number of songs with populartiy under genre", caption = "Tingxi Long")+
+    ylab("Number of songs")+xlab("Popularity")
+  })
+
+```
+### dancebility over genre
+
+```{r}
+formulaText <- reactive({
+    paste("Dancebility ~", input$genre)
+  })
+
+
+renderPlot({
+  songs_era %>%
+    filter(playlist_genre== input$genre) %>%
+    ggplot(aes(x=danceability))+
+    geom_histogram(aes(y=..density..),colour = 1,fill="pink")+  geom_density()+
+    labs(title ="Number of songs with dancebility under genre", caption = "Tingxi Long")+
+    ylab("Number of songs")+xlab("dancebility")
+  })
+
+```
+
+
+Explore era
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+To see how popularity varies across eras.
+```{r}
+selectInput("era", "Era:",
+                  c("Before 2000"="Before 2000",
+                    "2000-2010"="2000-2010",
+                    "After 2010"="After 2010"))
+```
+
+Column 
+-----------------------------------------------------------------------
+### Popularity over era
+
+```{r}
+formulaText <- reactive({
+    paste("Popularity ~", input$era)
+  })
+
+renderPlot({
+    songs_era %>%
+    filter(era == input$era) %>%
+    filter(track_popularity != 0) %>%
+    group_by(track_popularity)%>%
+    mutate(
+      N= n()
+    )%>%
+    ggplot(aes(fill=playlist_genre,x=track_popularity,y=N))+
+    geom_bar(stat='identity')+ 
+    labs(title ="Number of songs with populartiy under different era", caption = "Tingxi Long")+
+    ylab("Number of songs")+xlab("Popularity")
+  })
+
+```
+
+
+Analysis
+=====================================
+## Era
+### Popularity by Era
+```{r}
+f <- factor(c("2000", "00-10", "2010"), levels = c("2000", "00-10", "2010"))
+songs_era %>%
+  filter(!is.na(era)) %>%
+  group_by(playlist_genre, era) %>%
+  ggplot() +
+  geom_boxplot(aes(x=fct_inorder(era), track_popularity, fill=era), outlier.size=0) +
+  facet_wrap(~playlist_genre,nrow = 3) + 
+  labs(x='Era',y="popularity") +
+  theme_minimal() +
+  theme(legend.position = 'none')+
+  labs(title = "Track Popularity by Era and Playlist Genre",
+       subtitle = "Data from Spotify", caption = "Tingxi Long",
+       x='Era',
+       y="popularity")
+```
+
+
+### Song duration
+```{r}
+songs_era %>%
+  na.omit(era) %>%
+  ggplot(aes(x=playlist_genre,y=duration_min)) +
+  geom_violin(aes(fill=playlist_genre)) +
+  facet_grid(~fct_inorder(era)) +
+  theme_minimal() +
+  labs(x='Duration (min)') +
+  labs(title = "Song Duration by Playlist Genre and Era",
+       subtitle = "Data from Spotify", caption = "Tingxi Long",
+       x='Duration (min)') +
+  theme(legend.position = 'none')
+```
+
+## Column2
+### Loudness
+```{r}
+fig2 <-song %>%
+  ggplot(aes(fill=playlist_genre,x=energy,y=loudness))+
+  geom_bar(stat='identity')+ 
+  labs(title ="Loudness of songs in relation to its energy index", subtitle = 
+         "EDM has the largest loudness", caption = "Tingxi Long")+ylab("Loudness")+xlab("Energy index")
+fig2
+```

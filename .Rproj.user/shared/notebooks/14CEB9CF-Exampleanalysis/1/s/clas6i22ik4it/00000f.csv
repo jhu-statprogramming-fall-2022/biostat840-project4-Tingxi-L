@@ -1,0 +1,6 @@
+"0","fig2 <-song %>%"
+"0","  ggplot(aes(fill=playlist_genre,x=energy,y=loudness))+"
+"0","  geom_bar(stat='identity')+ "
+"0","  labs(title =""Loudness of songs in relation to its energy index"", subtitle = "
+"0","         ""EDM has the largest loudness"", caption = ""Tingxi Long"")+ylab(""Loudness"")+xlab(""Energy index"")"
+"0","fig2"

@@ -1,0 +1,209 @@
+---
+title: "Proj_1"
+author: "Tingxi Long"
+date: "2022-09-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project 1 for 776.Statistical computing
+```{r data}
+library(here)
+library(tidyverse)
+
+# tests if a directory named "data" exists locally
+if(!dir.exists(here("data"))) { dir.create(here("data")) }
+
+# saves data only once (not each time you knit a R Markdown)
+if(!file.exists(here("data","chocolate.RDS"))) {
+  url_csv <- 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-01-18/chocolate.csv'
+  chocolate <- readr::read_csv(url_csv)
+  
+  # save the file to RDS objects
+  saveRDS(chocolate, file= here("data","chocolate.RDS"))
+chocolate <- readRDS(here("data","chocolate.RDS"))
+as_tibble(chocolate)
+}
+```
+
+## Part 1: Explore data
+```{r}
+library(ggplot2)
+chocolate <- readr::read_rds(here::here("Data","chocolate.RDS"))
+g1 <- ggplot(chocolate, aes(x=rating)) + geom_histogram(bins=15,color="black", fill="pink")
+g1
+```
+
+1. With more bins, the columns became separated which makes the graph look strange. However, with bins less than 15, the columns became so packed and the column width become too big for such a histogram. I chose 15 because the arrangements of columns looks good to me. 
+```{r}
+#Part 1-2
+by_country <- chocolate %>% dplyr::count(country_of_bean_origin) # count the total reviews for each country of bean origin
+by_country
+```
+```{r}
+# Part 1-3
+library(tidyr)
+subset <- dplyr::filter(chocolate, country_of_bean_origin=="Ecuador") #only Ecuador will be selected for analysis
+subset %>%
+  dplyr::summarize(mean = mean(rating),  #use the base R function and dplyr function to calculate the mean, standard deviation and total number.
+                  sd = sd(rating),
+                  total = dplyr::n()) 
+```
+```{r}
+# Part 1-4
+subset2 <- subset %>%
+  dplyr::group_by(company_location) %>% # combines all the same values in the "company_location"
+  dplyr::summarize(mean=mean(rating)) # use base R function to calculate the mean value for rating for each value in company_location
+subset2 <- dplyr::arrange(subset2, mean, decreasing=FALSE) # sort by mean value in increasing order
+dplyr::slice_tail(subset2, n = 1) # select the last one which is the one with the largest mean value
+```
+4. Australia makes the best chocolate with beans from Ecuador.
+```{r}
+# Part 1-5
+subset3 <- chocolate %>%
+  dplyr::group_by(country_of_bean_origin) %>% # combines all the same values in the "company_location"
+  dplyr::summarize(mean=mean(rating)) # use base R function to calculate the mean value for rating for each value in company_location
+subset3 %>% dplyr::arrange(desc(mean)) %>% # sort by mean value in decreasing order
+  dplyr::slice_head(n=3) # select the first three with the largest mean value
+```
+5. The top 3 countries with the highest ratings on average are Tobago, China and Sao Tome & Principe.
+```{r}
+ss10 <- chocolate %>% dplyr::count(country_of_bean_origin) %>% dplyr::filter(n >= 10) # count the total reviews for each country of bean origin and only use the ones with more than 10 reviews
+dplyr::left_join(x=ss10, y=subset3, by="country_of_bean_origin") %>% dplyr::arrange(desc(mean)) %>% dplyr::slice_head(n=3) #combine two datasets and sort by mean of rating and select the first three with the largest mean value
+```
+6. After filtering out the countries of origins with less than 10 views, the top 3 countries with the highest ratings became Solomon Islands, Congo and Cuba. 
+```{r}
+library(forcats)
+ss50 <- chocolate %>% dplyr::count(country_of_bean_origin) %>% dplyr::filter(n >= 50) #summarize total reviews and select countries with at least 50 reviews
+subset4 <- chocolate %>%
+  dplyr::group_by(country_of_bean_origin) 
+part1_7 <- dplyr::left_join(x=ss50, y=subset4, by="country_of_bean_origin")
+part1_7$percent <- as.integer(substr(part1_7$cocoa_percent,1, nchar(part1_7$cocoa_percent)-1)) #convert character to integer and choose only the numbers
+co_level <- c("<60%", ">=60 to <70%", ">=70 to <90%", ">=90%") #make a list of levels
+part1_7 <- part1_7 %>% # assign levels to each category
+  dplyr::mutate(
+    co_per = case_when(
+                percent < 60 ~ co_level[1],
+                (percent >=60) & (percent <70) ~ co_level[2],
+                (percent >=70) & (percent <90) ~ co_level[3],
+                percent >= 90 ~ co_level[4]),                
+                co_per = forcats::fct_relevel(co_per, co_level) # relevel dataset by the list created above
+        )
+part1_7 %>% arrange(co_per) 
+fig1_7 <- ggplot(data=part1_7, aes(co_per,rating))+geom_boxplot()+facet_wrap(.~country_of_bean_origin,nrow=4)+theme(axis.text.x = element_text(angle = -30, vjust = 1, hjust=0)) #make boxplot and use facet_wrap to make 4 by 4 figure.
+fig1_7
+```
+
+## Part 2: Join two datasets together
+```{r}
+library(gapminder)
+as_tibble(gapminder)
+```
+```{r}
+newgap <- distinct(gapminder %>% select(country:continent)) #only choose the columns that will be used
+colnames(newgap)<-c("country_of_bean_origin","continent") # rename the column
+newgap
+part2_1 <- dplyr::left_join(x=ss10, y=subset4, by="country_of_bean_origin") 
+part2_2 <- dplyr::left_join(x=part2_1, y=newgap, by="country_of_bean_origin") # join two datasets
+part2_2$continent [part2_2$country_of_bean_origin == "Belize"] <- "Americas" #eliminate the NAs
+part2_2$continent [part2_2$country_of_bean_origin == "Canada"] <- "Americas"
+part2_2$continent [part2_2$country_of_bean_origin == "U.S.A."] <- "Americas"
+part2_2$continent [part2_2$country_of_bean_origin == "France"] <- "Europe"
+part2_2$continent [part2_2$country_of_bean_origin == "Solomon Islands"] <- "Oceania"
+part2_2$continent [part2_2$country_of_bean_origin == "Congo"] <- "Africa"
+part2_2$continent [part2_2$country_of_bean_origin == "Fiji"] <- "Oceania"
+part2_2$continent [part2_2$country_of_bean_origin == "Grenada"] <- "Americas"
+part2_2$continent [part2_2$country_of_bean_origin == "Papua New Guinea"] <- "Oceania"
+part2_2$continent [part2_2$country_of_bean_origin == "Sao Tome"] <- "Africa"
+part2_2$continent [part2_2$country_of_bean_origin == "St. Lucia"] <- "Americas"
+part2_2$continent [part2_2$country_of_bean_origin == "Trinidad"] <- "Americas"
+part2_2$continent [part2_2$country_of_bean_origin == "Vanuatu"] <- "Oceania"
+part2_3 <- subset(part2_2, country_of_bean_origin !="Blend") #filter out country of bean origin with blend
+fig2_1 <- ggplot(data=part2_3, aes(continent,rating))+geom_violin() # draw the violin plot
+fig2_1
+```
+
+## Part 3: Convert wide data into long data
+```{r}
+part3_1 <- chocolate %>% mutate( # use case_when to assign new values to new columns
+  beans = case_when(str_detect(ingredients, "B") ==TRUE ~ 1, TRUE ~ 0), #use str_detect to find key words
+  sugar = case_when(str_detect(ingredients, "S,") |str_detect(ingredients, "S$")  ==TRUE ~ 1, TRUE ~ 0), 
+  cocoa_butter = case_when(str_detect(ingredients, "C") ==TRUE ~ 1, TRUE ~ 0),
+  vanilla =case_when(str_detect(ingredients, "V") ==TRUE ~ 1, TRUE ~ 0),
+  letchin =case_when(str_detect(ingredients, "L") ==TRUE ~ 1, TRUE ~ 0),
+  salt = case_when(str_detect(ingredients, "Sa") ==TRUE ~ 1, 
+                                TRUE ~ 0))
+
+part3_2 <- part3_1 %>% mutate( # use case_when to assign new values to new columns
+  char_cocoa=case_when(str_detect(most_memorable_characteristics,"cocoa") ==TRUE ~ 1, TRUE ~ 0), 
+  char_sweet=case_when(str_detect(most_memorable_characteristics,"sweet") ==TRUE ~ 1, TRUE ~ 0),
+  char_nutty=case_when(str_detect(most_memorable_characteristics,"nutty") ==TRUE ~ 1, TRUE ~ 0),
+  char_creamy=case_when(str_detect(most_memorable_characteristics,"creamy") ==TRUE ~ 1, TRUE ~ 0),
+  char_roasty=case_when(str_detect(most_memorable_characteristics,"roasty") ==TRUE ~ 1, TRUE ~ 0),
+  char_earthy=case_when(str_detect(most_memorable_characteristics,"earthy") ==TRUE ~ 1, TRUE ~ 0)
+)
+
+part3_3 <- part3_2 %>% select(review_date, beans:char_earthy) #only use columns that is needed for analysis
+part3_3 <- part3_3  %>% group_by(review_date) %>% dplyr::summarise( #summarize the mean value of each colum by year
+  beans=mean(beans),
+  sugar=mean(sugar),
+  cocoa_butter=mean(cocoa_butter),
+  vanilla=mean(vanilla),
+  letchin=mean(letchin),
+  salt=mean(salt),
+  char_cocoa=mean(char_cocoa),
+  char_sweet=mean(char_sweet),
+  char_nutty=mean(char_nutty),
+  char_creamy=mean(char_creamy),
+  char_roasty=mean(char_roasty),
+  char_earthy=mean(char_earthy)
+)
+part3_3 <- part3_3 %>% pivot_longer(-review_date, names_to = "feature", values_to = "mean_score") #change wide dataframe to long dataframe
+
+```
+
+## Part 4: Data visualization
+```{r}
+library(ggplot2)
+ggplot(part3_3, aes(x=review_date, y=mean_score)) + geom_point(aes(colour = feature)) +  geom_smooth(method = "loess") +labs(title = "Mean score of chocolate ingredients from 2006 to 2021 ", subtitle = "The mean score of chocolate ingredients shows an overall decreasing trend in mean score", caption = "Tingxi Long") +facet_wrap(.~feature,nrow=4)+ xlab("Review Year") + ylab("Mean score (0~1)")+ theme(axis.text.x = element_text(angle = -30, vjust = 1.5, hjust=0.5)) +theme_minimal()
+```
+## Problem 5
+```{r}
+library(ggplot2)
+g1 <- ggplot(chocolate, aes(x=rating, y=country_of_bean_origin)) + geom_boxplot(outlier.colour = "grey", fill="grey")+ theme_dark() + theme(axis.text.y = element_text(angle = -60, vjust = 1.5, hjust=0.5)) +xlim(0,10) +xlab("") + ylab("")+ theme(axis.text = element_text(face = "italic", size = 15),axis.text.x.bottom = element_text(angle = 180))
+g1
+```
+
+-1. I changed the color of the outlier to black which made it hard for audience to read. \
+-2. I changed the scale of x axis to hide the details. \
+-3. I eliminated the description of the x and y axis and the title. \
+-4. I reversed the numbers on x axis 180 degrees. \
+-5. I italicized the string value on y axis and I am sure nobody would tell what are they. \
+-6. I used a box plot in grey and narrowed the block width. \
+-7. I used a dark theme so that all values are mixed together. \
+
+In general, all of the manipulations I made can be tuned to make the plot a better plot. We infer from the bad plot that the backgroung color and the color of the data(objects) should be significantly different so that the visualization is easy to understand. The binsize of each x and y coordinate should be at least not too narrow. It is better if clear gaps are visualized in a box plot. We should not rotate the description and units on both axises. We should not enlarge or tilt our string values or they would be in chaos. We should always add the title, xlabel and ylabel so that the delivery of the plot is easy to understand. We should control the range of both axis so that the plot has less meaningless areas like the right part of this plot.
+
+## Problem 6
+```{r}
+p <-  ggplot(chocolate, aes(x = as.factor(review_date), 
+             y = rating, 
+             fill = factor(review_date))) +
+  geom_violin()+theme_classic() + xlab("Year of review") +ylab("Score out of 5") +
+  labs(title ="Changes in ratings of chocolate from 2006 to 2021 ") +
+  theme(axis.text.x = element_text(angle = 20, vjust = 0.5, hjust=0)) +theme(axis.text.y = element_text(angle = 45, hjust = 1, colour = "red")) 
+p + stat_summary(fun.y="mean", geom="point", size=0.5, color="black")
+```
+
+-theme_classic(): makes background color transparent so that no additional noise is presented. \
+-fill = factor(review_date):I chose a colorful legend so that the variation is visualized by different colors. \
+-labs(title ="Changes in ratings of chocolate from 2006 to 2021 "): I added the title. \
+-theme(axis.text.x = element_text(angle = 20, vjust = 0.5, hjust=0)):I adjust the configuration of text information in this graph so that they are clear and tidy. \
+-xlab("Year of review") +ylab("Score out of 5"):I named the x and y axis. \
+-stat_summary(fun.y="mean", geom="point", size=0.5, color="black"): I added the mean of each year of review in the violin plot and represented them using black dots. \
+-theme(axis.text.y = element_text(angle = 45, hjust = 1, colour = "red") : I changed the color of y axis scales and changed the angle of text.
+
+

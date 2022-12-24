@@ -1,0 +1,6 @@
+"0","index <- song[,c(""danceability"",""energy"",""valence"",""acousticness"")]"
+"0","cindex<-cor(index,use = ""complete.obs"")"
+"0","plot(as.assoc(cindex), col=topo.colors, main=""My title"","
+"0","     axis.col=list(side=1, las=1),axis.row=list(side=2, las=1),ann = FALSE)"
+"2","Error in as.assoc(cindex) : could not find function ""as.assoc""
+"
