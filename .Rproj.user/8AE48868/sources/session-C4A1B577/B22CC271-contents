@@ -1,0 +1,13 @@
+name: Spotifysongs
+title: Spotifysongs
+username:
+account: tingxi-l
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7938530
+bundleId: 6669441
+url: https://tingxi-l.shinyapps.io/Spotifysongs/
+when: 1671850155.02327
+lastSyncTime: 1671850155.02328
+asMultiple: FALSE
+asStatic: FALSE
